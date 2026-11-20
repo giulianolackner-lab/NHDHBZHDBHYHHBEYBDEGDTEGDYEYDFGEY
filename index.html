@@ -1,200 +1,103 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<title>Tung Tung Sahur 3D</title>
-<style>
-  body { margin: 0; overflow: hidden; background: #87CEEB; font-family: sans-serif; }
-  #ui { position: fixed; top: 10px; left: 10px; color: #fff; background: rgba(0,0,0,0.7); padding: 12px; border-radius: 8px; font-size: 13px; z-index: 10; }
-</style>
+<meta charset="UTF-8"><title>Sahur 3D Hors Ligne</title>
+<style>body{margin:0;overflow:hidden;font-family:sans-serif}canvas{display:block;width:100vw;height:100vh}#ui{position:fixed;top:10px;left:10px;color:#fff;background:rgba(0,0,0,.7);padding:10px;border-radius:8px;font-size:13px;pointer-events:none}b{color:#fa0}</style>
 </head>
 <body>
-<div id="ui">
-  <b>🪵 TUNG TUNG SAHUR 3D</b><br>
-  ZQSD / Flèches : Bouger | Espace : Sauter / Monter | Shift : Descendre<br>
-  E : Entrer/Sortir véhicule | M : Vue 1ère / 3ème pers. | Clic : Souris & Batte
-  <div id="st" style="color:#00ffcc;margin-top:5px;font-weight:bold;">À pied | 3ème pers.</div>
-</div>
-
-<script src="https://unpkg.com"></script>
+<div id="ui"><b>🪵 TUNG TUNG SAHUR 3D (HORS LIGNE)</b><br>ZQSD/Flèches: Bouger | Espace: Sauter/Monter | Shift: Descendre<br>E: Véhicule | M: Vue 1ère/3ème | Clic: Batte<div id="st" style="color:#0fc;font-weight:bold;margin-top:4px">À pied | 3ème pers.</div></div>
+<canvas id="c"></canvas>
 <script>
-if (typeof THREE === 'undefined') {
-  document.body.innerHTML = '<h2 style="color:red;padding:20px;">Erreur : Connexion internet requise pour charger la 3D (Three.js).</h2>';
-} else {
-  const s = new THREE.Scene();
-  s.background = new THREE.Color(0x87CEEB);
-  s.fog = new THREE.FogExp2(0x87CEEB, 0.004);
+const c=document.getElementById('c'),x=c.getContext('2d');
+(onresize=()=>{c.width=innerWidth;c.height=innerHeight})();
 
-  const cam = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 1000);
-  const r = new THREE.WebGLRenderer({ antialias: true });
-  r.setSize(innerWidth, innerHeight);
-  r.shadowMap.enabled = true;
-  document.body.appendChild(r.domElement);
+let m='foot',fp=false,bat=0,k={};
+const p={x:0,y:0,z:0,a:0,vy:0},car={x:-25,y:0,z:40,a:0,s:0},pl={x:30,y:0,z:60,a:0,s:0,pt:0};
+const objs=Array.from({length:80},()=>{
+  let X=(Math.random()-.5)*800,Z=(Math.random()-.5)*800,t=Math.random()>.4;
+  return Math.abs(X)<25?null:{x:X,z:Z,w:t?4:16,h:t?18:45,c:t?'#272':'#678',t};
+}).filter(Boolean);
 
-  s.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.8));
-  const sun = new THREE.DirectionalLight(0xfff5e0, 1.2);
-  sun.position.set(80, 120, 80);
-  sun.castShadow = true;
-  s.add(sun);
+onkeydown=e=>{
+  k[e.code]=true;
+  if(e.code==='KeyM'){fp=!fp;ui();}
+  if(e.code==='KeyE'){
+    if(m==='foot'){
+      if(Math.hypot(p.x-car.x,p.z-car.z)<16)m='car';
+      else if(Math.hypot(p.x-pl.x,p.z-pl.z)<20)m='plane';
+    }else{
+      let v=m==='car'?car:pl;p.x=v.x+Math.cos(v.a)*10;p.z=v.z-Math.sin(v.a)*10;p.y=Math.max(0,v.y);m='foot';
+    }ui();
+  }
+};
+onkeyup=e=>k[e.code]=false;
+onmousedown=()=>{if(m==='foot'&&bat<=0)bat=1;};
+function ui(){document.getElementById('st').innerText=`${m==='foot'?'À pied':m==='car'?'Voiture':'Avion'} | ${fp?'1ère pers.':'3ème pers.'}`;}
 
-  const gnd = new THREE.Mesh(new THREE.PlaneGeometry(800, 800), new THREE.MeshStandardMaterial({ color: 0x3b8c3b }));
-  gnd.rotation.x = -Math.PI / 2;
-  gnd.receiveShadow = true;
-  s.add(gnd);
+function proj(X,Y,Z,cam){
+  let dx=X-cam.x,dy=Y-cam.y,dz=Z-cam.z;
+  let cy=Math.cos(-cam.a),sy=Math.sin(-cam.a),rx=dx*cy-dz*sy,rz=dx*sy+dz*cy;
+  let cp=Math.cos(-cam.pt),sp=Math.sin(-cam.pt),ry=dy*cp-rz*sp,fz=dy*sp+rz*cp;
+  if(fz<=.5)return null;
+  let f=c.height*.85;
+  return{x:c.width/2+(rx/fz)*f,y:c.height/2-(ry/fz)*f};
+}
 
-  const rd = new THREE.Mesh(new THREE.PlaneGeometry(20, 400), new THREE.MeshStandardMaterial({ color: 0x333333 }));
-  rd.rotation.x = -Math.PI / 2;
-  rd.position.y = 0.05;
-  s.add(rd);
+function box(X,Y,Z,W,H,D,A,C,cam){
+  let hw=W/2,hd=D/2,co=Math.cos(A),si=Math.sin(A);
+  let pts=[[-hw,0,-hd],[hw,0,-hd],[hw,0,hd],[-hw,0,hd],[-hw,H,-hd],[hw,H,-hd],[hw,H,hd],[-hw,H,hd]]
+    .map(q=>proj(X+q[0]*co-q[2]*si,Y+q[1],Z+q[0]*si+q[2]*co,cam));
+  if(pts.some(q=>!q))return;
+  [[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7],[4,5,6,7]].forEach(f=>{
+    x.beginPath();f.forEach((i,idx)=>idx?x.lineTo(pts[i].x,pts[i].y):x.moveTo(pts[i].x,pts[i].y));
+    x.closePath();x.fillStyle=C;x.fill();x.strokeStyle='rgba(0,0,0,.3)';x.stroke();
+  });
+}
 
-  for (let i = 0; i < 60; i++) {
-    let x = (Math.random() - 0.5) * 400, z = (Math.random() - 0.5) * 400;
-    if (Math.abs(x) < 18) continue;
-    let h = 10 + Math.random() * 30;
-    let b = new THREE.Mesh(new THREE.BoxGeometry(10, h, 10), new THREE.MeshStandardMaterial({ color: Math.random() > 0.5 ? 0x8899aa : 0x226622 }));
-    b.position.set(x, h / 2, z);
-    b.castShadow = true;
-    s.add(b);
+(function loop(){
+  requestAnimationFrame(loop);
+  let mv=(k.KeyW||k.ArrowUp?1:0)-(k.KeyS||k.ArrowDown?1:0),tn=(k.KeyD||k.ArrowRight?1:0)-(k.KeyA||k.ArrowLeft?1:0);
+  if(m==='foot'){
+    p.a+=tn*.05;p.x+=Math.sin(p.a)*mv*.7;p.z+=Math.cos(p.a)*mv*.7;
+    if(k.Space&&p.y<=0)p.vy=.85;p.y+=p.vy;if(p.y>0)p.vy-=.045;else p.y=p.vy=0;
+    if(bat>0)bat=Math.max(0,bat-.08);
+  }else if(m==='car'){
+    car.s=mv>0?Math.min(car.s+.06,2.2):mv<0?Math.max(car.s-.08,-.8):car.s*.96;
+    if(Math.abs(car.s)>.05)car.a+=tn*.04*(car.s>0?1:-1);
+    car.x+=Math.sin(car.a)*car.s;car.z+=Math.cos(car.a)*car.s;Object.assign(p,{x:car.x,y:car.y,z:car.z,a:car.a});
+  }else{
+    if(mv>0)pl.s=Math.min(pl.s+.05,3);if(mv<0)pl.s=Math.max(pl.s-.05,0);pl.a+=tn*.03;
+    if(k.Space&&pl.s>.8){pl.y+=.5;pl.pt=.15;}else if(k.ShiftLeft&&pl.y>0){pl.y=Math.max(0,pl.y-.5);pl.pt=-.15;}
+    else{pl.pt=0;if(pl.s<.8&&pl.y>0)pl.y=Math.max(0,pl.y-.3);}
+    pl.x+=Math.sin(pl.a)*pl.s;pl.z+=Math.cos(pl.a)*pl.s;Object.assign(p,{x:pl.x,y:pl.y,z:pl.z,a:pl.a});
   }
 
-  // Tung Tung Sahur
-  const p = new THREE.Group();
-  const wood = new THREE.MeshStandardMaterial({ color: 0x9c6635 });
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.65, 2.6, 16), wood);
-  body.position.y = 1.6;
-  body.castShadow = true;
-  p.add(body);
+  let t=m==='foot'?p:m==='car'?car:pl,cam={x:0,y:0,z:0,a:t.a,pt:m==='plane'?pl.pt:0};
+  if(fp){cam.x=t.x+Math.sin(t.a)*1.5;cam.y=t.y+(m==='foot'?5.2:3.8);cam.z=t.z+Math.cos(t.a)*1.5;}
+  else{let d=m==='plane'?28:m==='car'?18:14;cam.x=t.x-Math.sin(t.a)*d;cam.y=t.y+(m==='plane'?9:7);cam.z=t.z-Math.cos(t.a)*d;cam.pt=-.12;}
 
-  [-0.22, 0.22].forEach(x => {
-    const e = new THREE.Mesh(new THREE.SphereGeometry(0.18), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-    e.position.set(x, 2.3, -0.52);
-    const u = new THREE.Mesh(new THREE.SphereGeometry(0.09), new THREE.MeshBasicMaterial({ color: 0x000000 }));
-    u.position.set(x, 2.3, -0.65);
-    p.add(e, u);
+  let hy=Math.max(0,c.height/2+Math.sin(cam.pt)*c.height*.85);
+  x.fillStyle='#5bc0eb';x.fillRect(0,0,c.width,hy);x.fillStyle='#3b8c3b';x.fillRect(0,hy,c.width,c.height);
+  box(0,0,0,22,.1,800,0,'#333',cam);for(let z=-380;z<380;z+=30)box(0,.12,z,1.2,.05,12,0,'#fff',cam);
+
+  let list=objs.map(o=>({t:'o',d:o,z:Math.hypot(o.x-cam.x,o.z-cam.z)}));
+  list.push({t:'c',z:Math.hypot(car.x-cam.x,car.z-cam.z)},{t:'p',z:Math.hypot(pl.x-cam.x,pl.z-cam.z)});
+  if(!fp&&m==='foot')list.push({t:'u',z:Math.hypot(p.x-cam.x,p.z-cam.z)});
+  list.sort((a,b)=>b.z-a.z).forEach(i=>{
+    if(i.t==='o'){i.d.t?(box(i.d.x,0,i.d.z,2,6,2,0,'#5c3a21',cam),box(i.d.x,6,i.d.z,8,12,8,0,i.d.c,cam)):box(i.d.x,0,i.d.z,i.d.w,i.d.h,i.d.w,0,i.d.c,cam);}
+    else if(i.t==='c'){box(car.x,car.y+.5,car.z,5,2,10,car.a,'#e62e2e',cam);box(car.x,car.y+2.5,car.z,4,1.5,5,car.a,'#222',cam);}
+    else if(i.t==='p'){box(pl.x,pl.y+1,pl.z,3,2.5,14,pl.a,'#fff',cam);box(pl.x,pl.y+2,pl.z,22,.4,3.5,pl.a,'#06f',cam);}
+    else{
+      box(p.x,p.y+1.5,p.z,2.2,4.5,2.2,p.a,'#9c6635',cam);
+      box(p.x+Math.cos(p.a)*1.6+Math.sin(p.a)*(bat*2),p.y+2.5,p.z-Math.sin(p.a)*1.6+Math.cos(p.a)*(bat*2),.4,3.5,.4,p.a,'#deb887',cam);
+    }
   });
 
-  const arm = new THREE.Group();
-  arm.position.set(0.75, 1.9, 0);
-  const bat = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.06, 1.6), new THREE.MeshStandardMaterial({ color: 0xd4a373 }));
-  bat.position.set(0, -0.5, -0.8);
-  bat.rotation.x = 1.4;
-  arm.add(bat);
-  p.add(arm);
-  p.position.set(0, 0, 10);
-  s.add(p);
-
-  // Voiture
-  const car = new THREE.Group();
-  const cb = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1, 4.8), new THREE.MeshStandardMaterial({ color: 0xff2222 }));
-  cb.position.y = 0.8;
-  cb.castShadow = true;
-  const cc = new THREE.Mesh(new THREE.BoxGeometry(2, 0.7, 2.4), new THREE.MeshStandardMaterial({ color: 0x111111 }));
-  cc.position.set(0, 1.5, 0.2);
-  car.add(cb, cc);
-  car.position.set(-5, 0, -5);
-  s.add(car);
-
-  // Avion
-  const pl = new THREE.Group();
-  const pf = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.5, 7, 16), new THREE.MeshStandardMaterial({ color: 0xffffff }));
-  pf.rotation.x = Math.PI / 2;
-  pf.position.y = 1.5;
-  pf.castShadow = true;
-  const pw = new THREE.Mesh(new THREE.BoxGeometry(10, 0.15, 1.8), new THREE.MeshStandardMaterial({ color: 0x0066ff }));
-  pw.position.set(0, 1.6, -0.5);
-  const pr = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.2, 0.1), new THREE.MeshStandardMaterial({ color: 0x222222 }));
-  pr.position.set(0, 1.5, -3.6);
-  pl.add(pf, pw, pr);
-  pl.position.set(6, 0, -15);
-  s.add(pl);
-
-  let m = 'foot', fp = false, vy = 0, gr = true, cs = 0, ps = 0, yaw = 0, pit = 0.2, k = {};
-
-  onkeydown = e => {
-    k[e.code] = true;
-    if (e.code === 'KeyM') { fp = !fp; ui(); }
-    if (e.code === 'KeyE') {
-      if (m === 'foot') {
-        if (p.position.distanceTo(car.position) < 5) { m = 'car'; p.visible = false; }
-        else if (p.position.distanceTo(pl.position) < 6) { m = 'plane'; p.visible = false; }
-      } else {
-        p.visible = true;
-        p.position.copy(m === 'car' ? car.position : pl.position).add(new THREE.Vector3(3.5, 0, 0));
-        if (p.position.y < 0) p.position.y = 0;
-        m = 'foot';
-      }
-      ui();
-    }
-  };
-  onkeyup = e => k[e.code] = false;
-  onmousedown = () => {
-    r.domElement.requestPointerLock();
-    if (m === 'foot') { arm.rotation.x = 1.5; setTimeout(() => arm.rotation.x = 0, 200); }
-  };
-  onmousemove = e => {
-    if (document.pointerLockElement === r.domElement) {
-      yaw -= e.movementX * 0.003;
-      pit = Math.max(-1.2, Math.min(1.2, pit - e.movementY * 0.003));
-    }
-  };
-  onresize = () => { cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); r.setSize(innerWidth, innerHeight); };
-  function ui() { document.getElementById('st').innerText = `${m === 'foot' ? 'À pied' : m === 'car' ? 'Voiture' : 'Avion'} | ${fp ? '1ère pers.' : '3ème pers.'}`; }
-
-  const clk = new THREE.Clock();
-  function loop() {
-    requestAnimationFrame(loop);
-    const dt = clk.getDelta();
-    if (m === 'foot') {
-      let mz = (k.KeyS || k.ArrowDown ? 1 : 0) - (k.KeyW || k.ArrowUp ? 1 : 0);
-      let mx = (k.KeyD || k.ArrowRight ? 1 : 0) - (k.KeyA || k.ArrowLeft ? 1 : 0);
-      if (mz || mx) {
-        let a = Math.atan2(mx, mz) + yaw;
-        p.rotation.y = a;
-        p.position.x -= Math.sin(a) * 10 * dt;
-        p.position.z -= Math.cos(a) * 10 * dt;
-      }
-      if (k.Space && gr) { vy = 12; gr = false; }
-      p.position.y += vy * dt;
-      if (p.position.y > 0) vy -= 30 * dt; else { p.position.y = vy = 0; gr = true; }
-    } else if (m === 'car') {
-      cs = k.KeyW || k.ArrowUp ? Math.min(cs + 25 * dt, 45) : k.KeyS || k.ArrowDown ? Math.max(cs - 30 * dt, -15) : cs * 0.96;
-      if (Math.abs(cs) > 0.5) car.rotation.y += (k.KeyA || k.ArrowLeft ? 1 : k.KeyD || k.ArrowRight ? -1 : 0) * 2.2 * dt * (cs > 0 ? 1 : -1);
-      car.position.x -= Math.sin(car.rotation.y) * cs * dt;
-      car.position.z -= Math.cos(car.rotation.y) * cs * dt;
-      p.position.copy(car.position);
-    } else {
-      pr.rotation.z += 25 * dt;
-      if (k.KeyW || k.ArrowUp) ps = Math.min(ps + 20 * dt, 65);
-      if (k.KeyS || k.ArrowDown) ps = Math.max(ps - 15 * dt, 0);
-      if (k.KeyA || k.ArrowLeft) pl.rotation.y += 1.5 * dt;
-      if (k.KeyD || k.ArrowRight) pl.rotation.y -= 1.5 * dt;
-      if (k.Space && ps > 15) pl.position.y += 15 * dt;
-      else if (k.ShiftLeft && pl.position.y > 0) pl.position.y = Math.max(0, pl.position.y - 15 * dt);
-      pl.position.x -= Math.sin(pl.rotation.y) * ps * dt;
-      pl.position.z -= Math.cos(pl.rotation.y) * ps * dt;
-      p.position.copy(pl.position);
-    }
-
-    const t = m === 'foot' ? p : m === 'car' ? car : pl;
-    if (fp) {
-      cam.position.copy(t.position).add(new THREE.Vector3(0, m === 'foot' ? 2.3 : 1.8, 0));
-      if (m === 'foot') { p.visible = false; cam.rotation.order = 'YXZ'; cam.rotation.y = yaw; cam.rotation.x = pit; }
-      else cam.rotation.copy(t.rotation);
-    } else {
-      if (m === 'foot') {
-        p.visible = true;
-        cam.position.set(t.position.x + Math.sin(yaw) * 6, t.position.y + 3 + Math.sin(pit) * 3, t.position.z + Math.cos(yaw) * 6);
-        cam.lookAt(t.position.clone().add(new THREE.Vector3(0, 1.8, 0)));
-      } else {
-        let o = new THREE.Vector3(0, 4, m === 'plane' ? 14 : 9).applyQuaternion(t.quaternion);
-        cam.position.lerp(t.position.clone().add(o), 0.15);
-        cam.lookAt(t.position);
-      }
-    }
-    r.render(s, cam);
+  if(fp){
+    if(m==='foot'){x.save();x.translate(c.width*.78,c.height*.85);x.rotate(-.3-bat*1.1);x.fillStyle='#deb887';x.fillRect(-15,-220,30,240);x.restore();}
+    else{x.fillStyle='#1a1a1a';x.fillRect(0,c.height*.82,c.width,c.height*.18);}
   }
-  loop();
-}
+})();
 </script>
 </body>
 </html>
